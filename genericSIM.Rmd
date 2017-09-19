@@ -1,0 +1,38 @@
+---
+title: "Stochastic Process Simulator -R code"
+author: "Hengrui Luo"
+date: "12/22/2016"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+```{r}
+Markov1<-list()
+Markov1$matrix <-stationary(c(0.1,0.2,0.3,0.4));
+Markov1$initial<-c(1,4,9,24);
+Markov1$state<-Markov$initial
+Markov1$steps<-2;
+simulate<-function(Markov){
+  transition.matrix<-Markov$matrix;
+  state.vector<-Markov$initial;
+  for(n in 1:Markov$steps){
+    state.vector<-transition.matrix%*%state.vector;
+  }
+  Markov$state<-state.vector;
+  return(state.vector)
+}
+plotchain<-function(nerd){
+  
+}
+```
+
+```{r}
+stationary<-function(row.vector){
+  row.length<-length(row.vector);
+  Markov.matrix<-matrix(NA,nrow=row.length,ncol=row.length);
+  for(i in 1:row.length){
+    Markov.matrix[i,]<-row.vector;
+  }
+  return(Markov.matrix)
+}
+```
