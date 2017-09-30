@@ -38,7 +38,7 @@ lis1<-matrix2list(mat1)
 plotmatrix<-function(mat,heat=F,dig=6){
   require(ggplot2);
   lis<-matrix2list(mat);
-  adp_size<-sqrt(1/dim(lis)[1])*16.18;
+  adp_size<-sqrt(1/dim(lis)[1])*61.8;
   ggdat<-as.data.frame(lis);
   if(heat==F){
     grp<-ggplot(data=ggdat)+
@@ -66,7 +66,7 @@ plotmatrix<-function(mat,heat=F,dig=6){
   }
 }
 
-g1<-plotmatrix(mat1%*%mat1,heat=T);
+g1<-plotmatrix(mat1%*%mat1,heat=F);
 g1
 ```
 
@@ -102,11 +102,11 @@ animationmatrix(mat1,steps=20,heat=F)
 mat2<- matrix(c(0,1/3,2/3, 0, 0, 1, 1, 0, 0), nrow = 3, byrow = T)
 animationmatrix(mat2,steps=20,heat=T,interval=0.1)
 mat3<-rbind(
-  c(0.1,0,0.4,0.5),
-  c(0,0.1,0.9,0),
-  c(0.45,0.05,0.05,0.45),
-  c(0.2,0.3,0.1,0.4)
+  c(0,0,1,0),
+  c(1,0,0,0),
+  c(0.5,0.5,0,0),
+  c(1/3,1/3,1/3,0)
 )
-animationmatrix(mat3,steps=20,heat=T)
+animationmatrix(mat3,steps=30,heat=F)
 ```
 
