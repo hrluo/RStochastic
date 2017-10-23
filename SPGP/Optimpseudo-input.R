@@ -73,7 +73,7 @@ set.seed(11)
 #set.seed(1) will yield the local extrema and a very bad optimal point as claimed by [Titsias].
 #Source: Titsias, Michalis K. "Variational learning of inducing variables in sparse Gaussian processes." International Conference on Artificial Intelligence and Statistics. 2009.
 M=50;#full data set contains M observations.
-N=6;#We only want 6 pseudo inputs.
+N=5;#We only want 6 pseudo inputs.
 fulldatax<-seq(1,M,1);
 fulldatay<-2*fulldatax+rnorm(M)
 wrapper1<-function(x){
@@ -149,3 +149,8 @@ SPGP<-function(full.x=fulldatax,full.y=fulldatay,
   #return a predictive distribution.
 }
 message("SPGP initialized!")
+
+fun1<-SPGP()
+fun2<-SPGP(N.pi=length(fulldatay))
+
+#fun2 is the exact posterior because it uses all the data without any "pseudo-ness"
