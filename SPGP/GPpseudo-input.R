@@ -2,11 +2,11 @@
 #Source: Snelson, Edward, and Zoubin Ghahramani. "Sparse Gaussian processes using pseudo-inputs." Advances in neural information processing systems. 2006.
 #Author: Hengrui Luo(luo.619@osu.edu)
 library(mvtnorm)
-K<-function(point1,point2){
+K<-function(point1,point2,c=1){
   #This is the covariance function we specify for GP regression model.
   norm<-as.numeric( t(point1-point2)%*%(point1-point2) );
   #norm for stationary kernel
-  return( exp(-norm/0.01) )
+  return( c*exp(-0.5*norm) )
 }
 makeCovariance<-function(vector1,vector2){
   #This is used for generating the covariance matrix using the covariance function provided.
@@ -85,6 +85,8 @@ predictive_pseudoTarget<-function(ynew,xnew,x,y,barx,barf,sigma=1){
   return(result)
 }
 marginal_likelihood<-function(y,x,barx,sigma=1){
+  #This marginal likelihood is based on following notations from
+  #Source: Quiñonero-Candela, Joaquin, and Carl Edward Rasmussen. "A unifying view of sparse approximate Gaussian process regression." Journal of Machine Learning Research 6.Dec (2005): 1939-1959.
   k_n<-makeCovariance(barx,x);
   K_M<-makeCovariance(barx,barx);
   K_MN<-makeCovariance(barx,x);
@@ -114,12 +116,12 @@ wrapper1<-function(x){
 }
 
 random_init<-c(rnorm(N),0.01)
-wrapper1_res<-optim(par=random_init, fn=wrapper1, method="BFGS",control = list(fnscale = -1) )$par
+wrapper1_res<-optim(par=random_init, fn=wrapper1, method="CG",control = list(fnscale = -1) )$par
 
 random_init
 wrapper1_res
 
 plot(fulldatax,fulldatay)
-points(x=random_init[1:N],y=rep(0,N),col="blue",pch=20)
-points(x=wrapper1_res[1:N],y=rep(0,N),col="red",pch=20)
+points(x=random_init[1:N],y=rep(0,N),col="blue",pch=20,xlim=range(fulldatax),ylim=range(fulldatay))
+points(x=wrapper1_res[1:N],y=rep(0,N),col="red",pch=20,xlim=range(fulldatax),ylim=range(fulldatay))
 #we can see that the optimized pseudo locations are somehow more scattered around.
