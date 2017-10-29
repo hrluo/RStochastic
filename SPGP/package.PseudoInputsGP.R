@@ -251,7 +251,7 @@ fitGpPseudoInputsAdapt<-function(y,x,M.range=seq(1,10)){
 set.seed(123)
 
 # Number of observed points
-N <- 10000 
+N <- 100 
 
 #SD kernel
 sigma_K <- 1
@@ -286,27 +286,41 @@ lines(xPred, pred[1,], col = "red")
 
 #Different choices of number of pseudo-inputs
 
-plotGpPseudoInputs<-function(M=4,xPred=seq(0,1,length=100)) {
+plotGpPseudoInputs<-function(M=4,xPred=seq(0,1,length=100),useOpt=T,supplied.xbar=NULL,title="") {
   xbarStart <- runif(M)
   fit <- fitGpPseudoInputs(y, x, M, 
                            xbarStart = xbarStart, sigma_noiseStart = 1,
                            sigma_KStart = 1, rhoStart = .1, cond = 0)
   
   #Grid to display points
-  plot(x, y, xlim = range(c(x,fit$xbarOpt, xbarStart,xPred)), 
-       main = paste0("M =", M))
-  points(xbarStart, rep(max(y), M), col="blue", pch=20)
+  plot(x, y, xlim = range(c(x,fit$xbarOpt, xbarStart,xPred,supplied.xbar)), 
+       main = paste0("M =", M, title))
+  
   #The blue points are randomly chosen startup pseudo input points.
-  points(fit$xbarOpt, rep(min(y), M), col="green3", pch=20)
+  
   #The green points are chosen pseudo inputs points.
   #xPred <- seq(0,1, length = 100)
-  pred <-    wrapperPredDistr(xPred, y, x, 
-                           fit$xbarOpt, fit$sigma_noiseOpt, fit$sigma_KOpt, fit$rhoOpt, cond = 1e-6)
-  
-  fullpred<- wrapperPredDistr(x, y, x, 
-                              fit$xbarOpt, fit$sigma_noiseOpt, fit$sigma_KOpt, fit$rhoOpt, cond = 1e-6)
+  if(useOpt==T){
+    pred <-    wrapperPredDistr(xPred, y, x, 
+                             fit$xbarOpt, fit$sigma_noiseOpt, fit$sigma_KOpt, fit$rhoOpt, cond = 1e-6)
+    
+    fullpred<- wrapperPredDistr(x, y, x, 
+                                fit$xbarOpt, fit$sigma_noiseOpt, fit$sigma_KOpt, fit$rhoOpt, cond = 1e-6)
+    points(fit$xbarOpt, rep(min(y), M), col="green3", pch=20)
+    points(xbarStart, rep(max(y), M), col="blue", pch=20)
+  }else{
+    if(is.null(supplied.xbar)){supplied.xbar=xbarStart}
+    pred <-    wrapperPredDistr(xPred, y, x, 
+                                supplied.xbar, fit$sigma_noiseOpt, fit$sigma_KOpt, fit$rhoOpt, cond = 1e-6)
+    
+    fullpred<- wrapperPredDistr(x, y, x, 
+                                supplied.xbar, fit$sigma_noiseOpt, fit$sigma_KOpt, fit$rhoOpt, cond = 1e-6)    
+    points(supplied.xbar, rep(min(y), M), col="green3", pch=20)
+    points(xbarStart, rep(max(y), M), col="blue", pch=20)
+  }
   fullpredError<-y-as.numeric(fullpred[1,])
   fullpredError<-sum(fullpredError^2)
+  mtext(paste0("Prediction Error=",fullpredError))
   #This is the prediction error of this specific fit for the whole full data set.
   
   #Here we can replace the "xbar" option with the optimal design chosen pseudo input locations and therefore we can actually see how is the performance of Snelson-Zoubin compared with our solution.
@@ -346,4 +360,72 @@ summaryPseudoInput(fit4)
 summaryPseudoInput(fit5)
 
 #Minimal Example
-plotGpPseudoInputs(M=4,xPred=seq(0,2,length=100))
+predErrorresult<-matrix(NA,ncol=8,nrow=10)
+colnames(predErrorresult)<-c('random2','random4','random8','random16','opt2','opt4','opt8','opt16')
+for(k in 1:10){
+  plot2<-plotGpPseudoInputs(M=2,xPred=seq(0,2,length=100),useOpt = F)
+  plot4<-plotGpPseudoInputs(M=4,xPred=seq(0,2,length=100),useOpt = F)
+  plot8<-plotGpPseudoInputs(M=8,xPred=seq(0,2,length=100),useOpt = F)
+  plot16<-plotGpPseudoInputs(M=16,xPred=seq(0,2,length=100),useOpt = F)
+  predErrorresult[k,1]<-plot2$fullpredError
+  predErrorresult[k,2]<-plot4$fullpredError
+  predErrorresult[k,3]<-plot8$fullpredError
+  predErrorresult[k,4]<-plot16$fullpredError
+  
+  plot2<-plotGpPseudoInputs(M=2,xPred=seq(0,2,length=100),useOpt = T)
+  plot4<-plotGpPseudoInputs(M=4,xPred=seq(0,2,length=100),useOpt = T)
+  plot8<-plotGpPseudoInputs(M=8,xPred=seq(0,2,length=100),useOpt = T)
+  plot16<-plotGpPseudoInputs(M=16,xPred=seq(0,2,length=100),useOpt = T)
+  predErrorresult[k,5]<-plot2$fullpredError
+  predErrorresult[k,6]<-plot4$fullpredError
+  predErrorresult[k,7]<-plot8$fullpredError
+  predErrorresult[k,8]<-plot16$fullpredError
+  
+}
+require(ggplot2)
+dat2<-as.data.frame( rbind(cbind(predErrorresult[,1],'random'),cbind(predErrorresult[,5],'naive optimal')) );
+colnames(dat2)<-c('pred.error','method');
+dat2$pred.error<-as.numeric(as.character(dat2$pred.error))
+grp2<-ggplot(dat2,aes(x=method,y=log(pred.error),fill=method))+
+      geom_boxplot()+
+      theme_bw()+
+      ggtitle("Boxplot of prediction errors for \n random and naive optimal \n with 10 repeats of spGP on the same data set. M=2")
+
+dat4<-as.data.frame( rbind(cbind(predErrorresult[,2],'random'),cbind(predErrorresult[,6],'naive optimal')) );
+colnames(dat4)<-c('pred.error','method');
+dat4$pred.error<-as.numeric(as.character(dat4$pred.error))
+grp4<-ggplot(dat4,aes(x=method,y=log(pred.error),fill=method))+
+  geom_boxplot()+
+  theme_bw()+
+  ggtitle("Boxplot of prediction errors for \n random and naive optimal \n with 10 repeats of spGP on the same data set. M=4")
+
+dat8<-as.data.frame( rbind(cbind(predErrorresult[,3],'random'),cbind(predErrorresult[,7],'naive optimal')) );
+colnames(dat8)<-c('pred.error','method');
+dat8$pred.error<-as.numeric(as.character(dat8$pred.error))
+grp8<-ggplot(dat8,aes(x=method,y=log(pred.error),fill=method))+
+  geom_boxplot()+
+  theme_bw()+
+  ggtitle("Boxplot of prediction errors for \n random and naive optimal \n with 10 repeats of spGP on the same data set. M=8")
+
+dat16<-as.data.frame( rbind(cbind(predErrorresult[,4],'random'),cbind(predErrorresult[,8],'naive optimal')) );
+colnames(dat16)<-c('pred.error','method');
+dat16$pred.error<-as.numeric(as.character(dat16$pred.error))
+grp16<-ggplot(dat16,aes(x=method,y=log(pred.error),fill=method))+
+  geom_boxplot()+
+  theme_bw()+
+  ggtitle("Boxplot of prediction errors for \n random and naive optimal \n with 10 repeats of spGP on the same data set. M=16")
+require(gridExtra)
+g_legend<-function(a.gplot){
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)}
+
+mylegend<-g_legend(grp16)
+lm<-matrix(c(1,1,1,2,2,2,5,3,3,3,4,4,4,5),nrow=2,byrow = T);
+plotdfg <- grid.arrange(arrangeGrob(grp2 + theme(legend.position="none"),
+                                    grp4 + theme(legend.position="none"),
+                                    grp8 + theme(legend.position="none"),
+                                    grp16 + theme(legend.position="none"),
+                                    mylegend,layout_matrix = lm),
+                        nrow=1)
