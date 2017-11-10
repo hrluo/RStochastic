@@ -1,0 +1,412 @@
+---
+title: "STAT8810 HW3-Question4"
+author: "Hengrui Luo"
+date: "November 8, 2017"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+```{r,eval=F}
+##########################################################################################################################
+# Question 4
+##########################################################################################################################
+# For STAT8810 HW 3
+# Fall, 2017
+# M.T. Pratola, modified by Hengrui Luo
+library(fOptions)
+library(mvtnorm)
+source("dace.sim.R")
+source("regress.original.R")
+load("co2holdout.dat_.txt")
+#install.packages("tgp")
+library(tgp)
+# try a treed GP LLM
+# best to use the "b0" beta linear prior to capture common
+# common linear process throughout all regions (using the
+# ellipses "...") 
+co2df<-as.data.frame(co2holdout)[,]
+cat("\nReading response\n")
+n=dim(co2df)[1]
+k=2
+p=1
+simtrue=list(rhotrue=0,lambdaytrue=0,betatrue=rep(0,p))
+pi=list(az=5,bz=5,rhoa=rep(1,k),rhob=rep(5,k),Fz=matrix(1,nrow=n,ncol=p),mu=rep(1,p),lambdamu=1 )
+design=as.matrix(co2df[,1:2])
+l1=list(m1=outer(design[,1],design[,1],"-"))
+l2=list(m2=outer(design[,2],design[,2],"-"))
+l.dez=list(l1=l1,l2=l2)
+
+# now set up our observed data:
+y=co2df[,3]
+```
+
+```{r,eval=F}
+##########################################################################################################################
+# (a) Fit the CO2 data with BGP in Question 3
+##########################################################################################################################
+#source("regression.r")
+
+# Run MCMC using a proposal width of 1e-5 for the rho parameters.
+# mh=list(rr=0.01)
+# fit=regress(y,l.dez,5000,pi,mh,last=2000,adapt=FALSE)
+# plotfit2(fit)
+#Why bother non-adaptive when you have such an option...
+
+mh=list(rr=0.01)
+fit2=regress(y,l.dez,5000,pi,mh,last=2000,adapt=TRUE)
+plotfit2(fit2)
+# plotfit2 plot trace plot for each 
+# Predict the last fit on a grid of 100 equally spaced points
+grid.num=11
+grid=as.matrix(seq(0,1,length=grid.num))
+grid=expand.grid(grid,grid)
+#Create a 2 dim grid matrix.
+grid=as.matrix(grid)
+#two dim grid at each design location and calculate their relative distance norm.
+design.all=rbind(design,grid)
+l1=list(m1=outer(design.all[,1],design.all[,1],"-"))
+l2=list(m2=outer(design.all[,2],design.all[,2],"-"))
+l.v=list(l1=l1,l2=l2)
+
+fitp=predict(l.v,fit2,eps.yy=1e-4,force=F)
+
+library(rgl)
+# Plot the posterior predictions using mean and sd to quantify uncertainty (pointwise), we can use 97.5% and 2.5% posterior quantiles as cutpoints of credible intervals.
+ysd=apply(fitp$preds,2,sd)
+yq1=apply(fitp$preds,2,quantile,probs=.025)
+yq2=apply(fitp$preds,2,quantile,probs=.975)
+ym=apply(fitp$preds,2,mean)
+
+# Plot fit and uncertainties
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),z=matrix(ym,grid.num,grid.num),
+        col="grey",xlab="stack_inerts",ylab="time",zlab="CO2")
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(yq1,grid.num,grid.num),col="green",add=TRUE,alpha=.5)
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(yq2,grid.num,grid.num),col="green",add=TRUE,alpha=.5)
+plot3d(x=co2df$stack_inerts,y=co2df$time,z=co2df$co2,add=TRUE,size=1,type='s',col='red')
+
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),z=matrix(ym,grid.num,grid.num),
+        col="grey",xlab="stack_inerts",ylab="time",zlab="CO2")
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(ym-ysd,grid.num,grid.num),col="blue",add=TRUE,alpha=.5)
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(ym+ysd,grid.num,grid.num),col="blue",add=TRUE,alpha=.5)
+plot3d(x=co2df$stack_inerts,y=co2df$time,z=co2df$co2,add=TRUE,size=1,type='s',col='red')
+
+rgl.viewpoint(30,30,60)
+rgl.snapshot(filename = "BGP1.png")
+rgl.viewpoint(45,-90,60)
+rgl.snapshot(filename = "BGP2.png")
+rgl.viewpoint(90,-90,60)
+rgl.snapshot(filename = "BGP3.png")
+#Here we completely plot the uncertainty quantification 
+```
+(We omit the output here since it is nothing much different from output from Question 3)
+
+```{r,eval=F}
+##########################################################################################################################
+# (b) Fit the CO2 data with BTGP (Bayesian Treed GP)
+##########################################################################################################################
+library(tgp)
+grid.num=11
+grid=as.matrix(seq(0,1,length=grid.num))
+grid=expand.grid(grid,grid)
+#Create a 2 dim grid matrix.
+grid=as.matrix(grid)
+X <- co2df[,1:2]
+XX <- grid
+Z <- co2df[,3]
+fit.tgp <- btgp(X=X, Z=Z, XX=XX,trace=T) 
+plot(fit.tgp) # plot the surface
+tgp.trees(fit.tgp) # plot the MAP trees
+#Diagnostics
+par(mfrow=c(1,2))
+plot(fit.tgp$trace$hier$s2.a0,type='l')
+plot(fit.tgp$trace$preds$Zp.ks2$XX1,type='l')
+# Plot fit
+
+ysd=fit.tgp$ZZ.vark
+yq1=fit.tgp$ZZ.q1
+yq2=fit.tgp$ZZ.q2
+ym =fit.tgp$ZZ.mean
+#Here we can also use 5% and 95% quantile instead of variance as uncertainty quantification interval, as suggested by TGP. What we get directly from btgp function is the 2.5% and 97.5% quantile of the posterior samples.
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),z=matrix(ym,grid.num,grid.num),
+        col="grey",xlab="stack_inerts",ylab="time",zlab="CO2")
+plot3d(co2df,add=TRUE)
+
+# Plot fit and uncertainties
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),z=matrix(ym,grid.num,grid.num),
+        col="grey",xlab="stack_inerts",ylab="time",zlab="CO2")
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(yq1,grid.num,grid.num),col="green",add=TRUE,alpha=.5)
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(yq2,grid.num,grid.num),col="green",add=TRUE,alpha=.5)
+plot3d(x=co2df$stack_inerts,y=co2df$time,z=co2df$co2,add=TRUE,size=1,type='s',col='red')
+
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),z=matrix(ym,grid.num,grid.num),
+        col="grey",xlab="stack_inerts",ylab="time",zlab="CO2")
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(ym-ysd,grid.num,grid.num),col="blue",add=TRUE,alpha=.5)
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(ym+ysd,grid.num,grid.num),col="blue",add=TRUE,alpha=.5)
+plot3d(x=co2df$stack_inerts,y=co2df$time,z=co2df$co2,add=TRUE,size=1,type='s',col='red')
+
+rgl.viewpoint(30,30,60)
+rgl.snapshot(filename = "TGP1.png")
+rgl.viewpoint(45,-90,60)
+rgl.snapshot(filename = "TGP2.png")
+rgl.viewpoint(90,-90,60)
+rgl.snapshot(filename = "TGP3.png")
+```
+burn in:  
+**GROW** @depth 0: [1,0.5], n=(208,164)  
+**PRUNE** @depth 0: [1,0.5]  
+r=1000 d=[0.00259203 0.220003]; n=372  
+**GROW** @depth 0: [2,0.2], n=(87,285)  
+r=2000 d=[0.104118 0.458754] [0.00263412 0.936753]; n=(87,285)  
+  
+Sampling @ nn=121 pred locs:  
+r=1000 d=[0.614422 0.0753061] [0.00240447 1.06558]; mh=2 n=(87,285)  
+**GROW** @depth 1: [1,0.498798], n=(46,41)  
+r=2000 d=[0.0699097 0.036066] [0.697349 0.0354746] [0.0025254 0.729628]; mh=3 n=(46,41,285)  
+r=3000 d=[0.197858 0.0750243] [0.789468 0.125436] [0.00291456 0.935195]; mh=3 n=(46,41,285)  
+r=4000 d=[0.00170656 0.0173697] [1.0251 0.0667556] [0.00289671 1.28135]; mh=3 n=(56,49,267)  
+r=5000 d=[0.00118787 0.0603981] [0.815149 0.0383773] [0.00294744 0.895394]; mh=3 n=(46,41,285)  
+Grow: 0.8746%, Prune: 0.3831%, Change: 20.7%, Swap: 0%  
+
+```{r,eval=F}
+##########################################################################################################################
+# (c) Fit the CO2 data with BayesTree (Bayes single tree, m=1)
+##########################################################################################################################
+# Fit the BART model with multiple m trees.
+y=co2df$co2
+x=co2df[,1:2]
+preds=as.data.frame(expand.grid(seq(0,1,length=grid.num),
+                                seq(0,1,length=grid.num)))
+colnames(preds)=colnames(x)
+shat=sd(y)
+# Try m=1 tree, single tree GP
+m=1
+# And k=2
+k=2
+# And nu=1, q=.99
+nu=3
+q=0.99
+# And numcuts=1000
+nc=1000
+# MCMC settings
+N=1000
+burn=1000
+fit.BART=bart(x.train=x,y.train=y,x.test=preds,sigest=shat,sigdf=nu,sigquant=q,
+              k=k,power=beta,base=alpha,ntree=m,numcut=nc,
+              ndpost=N,nskip=burn)
+
+# Plot posterior samples of sigma
+plot(fit.BART$sigma,type='l',xlab="Iteration",
+     ylab=expression(sigma))
+
+# Plot fit
+ym =fit.BART$yhat.test.mean
+ysd=apply(fit.BART$yhat.test,2,sd)
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),z=matrix(ym,grid.num,grid.num),
+        col="grey",xlab="stack_inerts",ylab="time",zlab="CO2")
+plot3d(co2df,add=TRUE)
+#Here we can either choose 2.5%,97.5% posterior sample quantiles as uncertainty quantification or +/- 2sd, but we choose 95% credible interval according to the HW requirement.
+# Plot fit and uncertainties
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),z=matrix(ym,grid.num,grid.num),
+        col="grey",xlab="stack_inerts",ylab="time",zlab="CO2")
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(yq1,grid.num,grid.num),col="green",add=TRUE,alpha=.5)
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(yq2,grid.num,grid.num),col="green",add=TRUE,alpha=.5)
+plot3d(x=co2df$stack_inerts,y=co2df$time,z=co2df$co2,add=TRUE,size=1,type='s',col='red')
+
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),z=matrix(ym,grid.num,grid.num),
+        col="grey",xlab="stack_inerts",ylab="time",zlab="CO2")
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(ym-ysd,grid.num,grid.num),col="blue",add=TRUE,alpha=.5)
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(ym+ysd,grid.num,grid.num),col="blue",add=TRUE,alpha=.5)
+plot3d(x=co2df$stack_inerts,y=co2df$time,z=co2df$co2,add=TRUE,size=1,type='s',col='red')
+plot(fit.BART)
+
+rgl.viewpoint(30,30,60)
+rgl.snapshot(filename = "BART1.png")
+rgl.viewpoint(45,-90,60)
+rgl.snapshot(filename = "BART2.png")
+rgl.viewpoint(90,-90,60)
+rgl.snapshot(filename = "BART3.png")
+```
+Running BART with numeric y  
+  
+number of trees: 1  
+Prior:  
+	k: 2.000000  
+	degrees of freedom in sigma prior: 3  
+	quantile in sigma prior: 0.990000  
+	power and base for tree prior: 2.000000 0.950000  
+	use quantiles for rule cut points: 0  
+data:  
+	number of training observations: 372  
+	number of test observations: 121  
+	number of explanatory variables: 2  
+  
+
+Cutoff rules c in x<=c vs x>c  
+Number of cutoffs: (var: number of possible c):  
+(1: 1000) (2: 1000)  
+
+
+Running mcmc loop:  
+iteration: 100 (of 2000)  
+iteration: 200 (of 2000)  
+iteration: 300 (of 2000)  
+iteration: 400 (of 2000)  
+iteration: 500 (of 2000)  
+iteration: 600 (of 2000)  
+iteration: 700 (of 2000)  
+iteration: 800 (of 2000)  
+iteration: 900 (of 2000)  
+iteration: 1000 (of 2000)  
+iteration: 1100 (of 2000)  
+iteration: 1200 (of 2000)  
+iteration: 1300 (of 2000)  
+iteration: 1400 (of 2000)  
+iteration: 1500 (of 2000)  
+iteration: 1600 (of 2000)  
+iteration: 1700 (of 2000)  
+iteration: 1800 (of 2000)  
+iteration: 1900 (of 2000)  
+iteration: 2000 (of 2000)  
+time for loop: 0  
+
+Tree sizes, last iteration:  
+25 Variable Usage, last iteration (var:count):  
+(1: 11) (2: 13)   
+DONE BART 11-2-2014  
+
+
+```{r,eval=F}
+##########################################################################################################################
+# (d) Fit the CO2 data with BART (Bayesian Additive Regression Tree)
+##########################################################################################################################
+# Fit the BART model with multiple m trees.
+y=co2df$co2
+x=co2df[,1:2]
+preds=as.data.frame(expand.grid(seq(0,1,length=grid.num),
+                                seq(0,1,length=grid.num)))
+colnames(preds)=colnames(x)
+shat=sd(y)
+# Try m=200 trees, the recommended default
+m=200
+# And k=2
+k=2
+# And nu=1, q=.99
+nu=3
+q=0.99
+# And numcuts=1000
+nc=1000
+# MCMC settings
+N=1000
+burn=1000
+fit.BARTm=bart(x.train=x,y.train=y,x.test=preds,sigest=shat,sigdf=nu,sigquant=q,
+         k=k,power=beta,base=alpha,ntree=m,numcut=nc,
+         ndpost=N,nskip=burn)
+
+# Plot posterior samples of sigma
+plot(fit.BARTm$sigma,type='l',xlab="Iteration",
+     ylab=expression(sigma))
+
+# Plot fit
+yq1=apply(fit.BARTm$yhat.test,2,quantile,probs=.025)
+yq2=apply(fit.BARTm$yhat.test,2,quantile,probs=.975)
+ysd=apply(fit.BARTm$yhat.test,2,sd)
+ym =fit.BARTm$yhat.test.mean
+#Here we can either choose 2.5%,97.5% posterior sample quantiles as uncertainty quantification or +/- 2sd, but we choose 95% credible interval according to the HW requirement.
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),z=matrix(ym,grid.num,grid.num),
+        col="grey",xlab="stack_inerts",ylab="time",zlab="CO2")
+plot3d(co2df,add=TRUE)
+
+# Plot fit and uncertainties
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),z=matrix(ym,grid.num,grid.num),
+        col="grey",xlab="stack_inerts",ylab="time",zlab="CO2")
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(yq1,grid.num,grid.num),col="green",add=TRUE,alpha=.5)
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(yq2,grid.num,grid.num),col="green",add=TRUE,alpha=.5)
+
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),z=matrix(ym,grid.num,grid.num),
+        col="grey",xlab="stack_inerts",ylab="time",zlab="CO2")
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(ym-ysd,grid.num,grid.num),col="blue",add=TRUE,alpha=.5)
+persp3d(x=seq(0,1,length=grid.num),y=seq(0,1,length=grid.num),
+        z=matrix(ym+ysd,grid.num,grid.num),col="blue",add=TRUE,alpha=.5)
+plot3d(x=co2df$stack_inerts,y=co2df$time,z=co2df$co2,add=TRUE,size=1,type='s',col='red')
+plot(fit.BART)
+
+rgl.viewpoint(30,30,60)
+rgl.snapshot(filename = "BARTm1.png")
+rgl.viewpoint(45,-90,60)
+rgl.snapshot(filename = "BARTm2.png")
+rgl.viewpoint(90,-90,60)
+rgl.snapshot(filename = "BARTm3.png")
+```
+Running BART with numeric y  
+
+number of trees: 200  
+Prior:  
+	k: 2.000000  
+	degrees of freedom in sigma prior: 3  
+	quantile in sigma prior: 0.990000  
+	power and base for tree prior: 2.000000 0.950000  
+	use quantiles for rule cut points: 0  
+data:  
+	number of training observations: 372  
+	number of test observations: 121  
+	number of explanatory variables: 2  
+
+
+Cutoff rules c in x<=c vs x>c  
+Number of cutoffs: (var: number of possible c):  
+(1: 1000) (2: 1000)   
+
+
+Running mcmc loop:  
+iteration: 100 (of 2000)  
+iteration: 200 (of 2000)  
+iteration: 300 (of 2000)  
+iteration: 400 (of 2000)  
+iteration: 500 (of 2000)  
+iteration: 600 (of 2000)  
+iteration: 700 (of 2000)  
+iteration: 800 (of 2000)  
+iteration: 900 (of 2000)  
+iteration: 1000 (of 2000)  
+iteration: 1100 (of 2000)  
+iteration: 1200 (of 2000)  
+iteration: 1300 (of 2000)  
+iteration: 1400 (of 2000)  
+iteration: 1500 (of 2000)  
+iteration: 1600 (of 2000)  
+iteration: 1700 (of 2000)  
+iteration: 1800 (of 2000)  
+iteration: 1900 (of 2000)  
+iteration: 2000 (of 2000)  
+time for loop: 69  
+  
+Tree sizes, last iteration:  
+2 1 2 3 2 2 3 2 3 2 3 3 2 2 3 3 3 3 3 2   
+2 2 2 2 2 2 2 2 3 3 3 2 2 2 2 2 3 2 3 2   
+5 4 2 2 1 2 3 2 2 3 3 2 2 3 4 2 3 2 4 3   
+3 2 3 3 2 2 2 2 2 2 3 3 1 2 2 2 3 3 2 2   
+3 2 2 2 2 2 2 2 2 3 3 3 2 2 2 2 2 2 2 2   
+3 2 3 3 2 2 3 2 2 3 2 2 2 2 2 3 3 2 2 2   
+2 2 2 2 3 2 2 2 2 1 2 3 2 3 1 2 2 2 1 2   
+2 2 4 2 2 2 3 2 1 3 4 3 2 2 4 4 2 3 3 4   
+2 1 2 2 2 3 4 2 2 2 2 3 2 2 2 3 2 3 3 3   
+4 2 2 3 2 3 2 4 2 3 2 3 2 2 2 2 2 2 2 2   
+Variable Usage, last iteration (var:count):  
+(1: 138) (2: 136)   
+DONE BART 11-2-2014  
