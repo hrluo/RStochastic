@@ -1,0 +1,62 @@
+---
+title: "STAT7730 HW7"
+author: "Hengrui Luo"
+date: "November 4, 2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+**(a)**
+```{r}
+Y<-read.table("HW7-HMMdata.txt",header=F)
+Y<-Y$V1
+norm0<-function(x){return( log(dnorm(x,mean=0,sd=1)) )}
+norm1<-function(x){return( log(dnorm(x,mean=1,sd=1)) )}
+PDF<-data.frame(MEAN0=norm0(Y),MEAN1=norm1(Y))
+xstar<-(PDF$MEAN0 <= PDF$MEAN1)
+xstar<-as.numeric(xstar)
+plot(1:1000,Y,xlab="observation serial",ylab="prob",main="x* sequence")
+points(1:1000,xstar)
+
+```
+
+**(b)**
+```{r}
+p<- 0.01
+
+df_a<-data.frame(x_i1_0=rep(NA,999),x_i1_1=rep(NA,999))
+df_m<-df_a
+df_m$x_i1_0[1]<-max(c(log(.5)+norm0(Y[1])+log(1-p),
+                            log(.5)+norm1(Y[1])+log(p)))
+df_m$x_i1_1[1]<-max(c(log(.5)+norm0(Y[1])+log(p),
+                            log(.5)+norm1(Y[1])+log(1-p)))
+df_a$x_i1_0[1]<-max(as.numeric
+                           (log(.5)+norm0(Y[1])+log(1-p)<=
+                            log(.5)+norm1(Y[1])+log(p)))
+df_a$x_i1_1[1]<-max(as.numeric
+                           (log(.5)+norm0(Y[1])+log(p)<=
+                            log(.5)+norm1(Y[1])+log(1-p)))
+for(i in 2:999){
+df_m$x_i1_0[i]<-max(c(df_m$x_i1_0[i-1]+norm0(Y[i])+log(1-p),
+                            df_m$x_i1_1[i-1]+norm1(Y[i])+log(p)))
+df_m$x_i1_1[i]<-max(c(df_m$x_i1_0[i-1]+norm0(Y[i])+log(p),
+                            df_m$x_i1_1[i-1]+norm1(Y[i])+log(1-p)))
+df_a$x_i1_0[i]<-max(as.numeric
+                           (df_m$x_i1_0[i-1]+norm0(Y[i])+log(1-p)<=
+                            df_m$x_i1_1[i-1]+norm1(Y[i])+log(p)))
+df_a$x_i1_1[i]<-max(as.numeric
+                           (df_m$x_i1_0[i-1]+norm0(Y[i])+log(p)<=
+                            df_m$x_i1_1[i-1]+norm1(Y[i])+log(1-p)))
+}
+xtilde<-rep(NA,1000) 
+xtilde[1000]<-as.numeric(
+              df_m$x_i1_0[i-1]+norm0(Y[i])<=
+              df_m$x_i1_1[i-1]+norm1(Y[i]) )
+for(j in 999:1){
+  xtilde[j]<-df_a[j,xtilde[j+1]+1];
+}
+plot(1:1000,Y,xlab="observation serial",ylab="prob",main="x** sequence")
+points(1:1000,xtilde)
+```
+
